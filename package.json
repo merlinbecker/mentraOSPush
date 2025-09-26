@@ -1,0 +1,26 @@
+{
+  "name": "mentraospush",
+  "version": "1.0.0",
+  "description": "Azure Function app for webpush events to mentraOS and G1",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "azure",
+    "functions",
+    "nodejs",
+    "webpush",
+    "mentraOS"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
