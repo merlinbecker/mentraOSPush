@@ -35,6 +35,7 @@ app.http('dashboardPage', {
             <th>Owner</th>
             <th>Connected</th>
             <th>Last Activity</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -45,6 +46,17 @@ app.http('dashboardPage', {
               <td x-text="session.ownerId || '—'"></td>
               <td x-text="formatDate(session.connectedAt)"></td>
               <td x-text="formatDate(session.lastActivityAt)"></td>
+              <td>
+                <button 
+                  @click="sendTestMessage(session.identifier)" 
+                  :disabled="session.testLoading"
+                  class="secondary outline"
+                  style="font-size: 0.8rem; padding: 0.25rem 0.5rem;"
+                >
+                  <span x-show="!session.testLoading">🧪 Test</span>
+                  <span x-show="session.testLoading">⏳</span>
+                </button>
+              </td>
             </tr>
           </template>
         </tbody>
@@ -73,14 +85,84 @@ app.http('dashboardPage', {
         sessions: [],
         recentPushes: [],
         async load() {
-          const response = await fetch('../status');
-          if (!response.ok) {
-            console.error('Failed to load status');
-            return;
+          try {
+            console.log('Loading dashboard data...');
+            const response = await fetch('./status');
+            console.log('Status response:', response.status, response.statusText);
+            
+            if (!response.ok) {
+              console.error('Failed to load status:', response.status, response.statusText);
+              return;
+            }
+            
+            const data = await response.json();
+            console.log('Received data:', data);
+            
+            this.sessions = data.sessions || [];
+            this.recentPushes = data.recentPushes || [];
+            
+            // Add testLoading property to each session
+            this.sessions.forEach(session => {
+              session.testLoading = false;
+            });
+            
+            console.log('Updated sessions:', this.sessions.length);
+            console.log('Updated pushes:', this.recentPushes.length);
+          } catch (error) {
+            console.error('Error loading dashboard data:', error);
           }
-          const data = await response.json();
-          this.sessions = data.sessions || [];
-          this.recentPushes = data.recentPushes || [];
+        },
+        async sendTestMessage(identifier) {
+          try {
+            // Find the session and set loading state
+            const session = this.sessions.find(s => s.identifier === identifier);
+            if (session) {
+              session.testLoading = true;
+            }
+
+            console.log('Sending test message to: ' + identifier);
+            const response = await fetch('./test-message/' + encodeURIComponent(identifier), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+              console.log('Test message sent successfully');
+              // Show temporary success message
+              this.showNotification('Test message sent successfully!', 'success');
+              
+              // Refresh data to update last activity
+              setTimeout(() => this.load(), 1000);
+            } else {
+              console.error('Failed to send test message:', result.error);
+              this.showNotification('Failed to send test message: ' + result.error, 'error');
+            }
+          } catch (error) {
+            console.error('Error sending test message:', error);
+            this.showNotification('Error: ' + error.message, 'error');
+          } finally {
+            // Reset loading state
+            const session = this.sessions.find(s => s.identifier === identifier);
+            if (session) {
+              session.testLoading = false;
+            }
+          }
+        },
+        showNotification(message, type) {
+          type = type || 'info';
+          // Simple notification - you could enhance this with a toast library
+          const style = type === 'success' ? 'color: green' : 
+                       type === 'error' ? 'color: red' : 'color: blue';
+          console.log('%c' + message, style);
+          
+          // Show browser notification if possible
+          if (window.Notification && Notification.permission === 'granted') {
+            new Notification('mentraOS Gateway', { body: message });
+          }
         },
         formatDate(value) {
           if (!value) return '—';
