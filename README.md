@@ -228,3 +228,49 @@ func azure functionapp publish <YOUR_FUNCTION_APP_NAME>
 - Replace the in-memory store with Cosmos DB, Azure Cache for Redis or Table Storage for durability.
 - Extend webhook support to additional providers (e.g., Azure DevOps) while reusing the mentraOS delivery pipeline.
 - Add authentication for the dashboard and status API before exposing them publicly.
+
+## Troubleshooting
+
+### Common Configuration Issues
+
+**"Either pushUrl or baseUrl must be provided"**
+- Ensure `MENTRA_BASE_URL` is set in your environment variables, or
+- Provide `baseUrl` or `pushUrl` in your session registration payload
+
+**"Either accessToken or apiKey must be provided for mentraOS authentication"**
+- Set `MENTRA_API_KEY` or `MENTRA_ACCESS_TOKEN` in your environment variables, or
+- Provide `apiKey` or `accessToken` in your session registration payload
+
+**"Session does not include a pushUrl or baseUrl"**
+- This error occurs during webhook delivery if the session lacks proper URL configuration
+- Verify your session was registered with valid `baseUrl` or `pushUrl`
+
+### Testing Your Setup
+
+1. **Verify environment variables**:
+   ```bash
+   func settings list
+   ```
+
+2. **Test session registration**:
+   ```bash
+   curl -X POST http://localhost:7071/api/sessions \
+     -H "Content-Type: application/json" \
+     -d '{"identifier":"test","deviceId":"G1-123","ownerId":"user"}'
+   ```
+
+3. **Check registered sessions**:
+   ```bash
+   curl http://localhost:7071/api/status
+   ```
+
+4. **View the dashboard**: `http://localhost:7071/api/dashboard`
+
+### mentraOS Integration Checklist
+
+- [ ] mentraOS instance URL is accessible
+- [ ] API key or access token is valid and has proper permissions
+- [ ] Environment variables are configured correctly
+- [ ] Session registration succeeds with proper validation
+- [ ] Webhook endpoint is reachable from GitHub
+- [ ] Reference cards are being delivered to mentraOS successfully
