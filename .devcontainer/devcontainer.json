@@ -1,0 +1,9 @@
+{
+  "name": "Azure Functions Codespace",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "npm install -g azure-functions-core-tools@4 --unsafe-perm true && npm install"
+}
