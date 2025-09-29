@@ -6,7 +6,7 @@ app.http('endSession', {
   authLevel: 'anonymous',
   route: 'sessions/{identifier}',
   handler: async (request, context) => {
-    const identifier = request.params.get('identifier');
+    const identifier = request.params.identifier;
     if (!identifier) {
       return { status: 400, jsonBody: { message: 'Identifier missing' } };
     }

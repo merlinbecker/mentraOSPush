@@ -4,6 +4,9 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "GITHUB_WEBHOOK_SECRET": "",
-    "MENTRA_REFERENCE_CARD_PATH": "/api/v1/reference-cards"
+    "MENTRA_REFERENCE_CARD_PATH": "/api/v1/reference-cards",
+    "MENTRA_BASE_URL": "",
+    "MENTRA_API_KEY": "",
+    "MENTRA_ACCESS_TOKEN": ""
   }
 }
