@@ -32,6 +32,9 @@ Environment variables (`local.settings.json` for local runs):
 | --- | --- |
 | `GITHUB_WEBHOOK_SECRET` | Optional shared secret used to validate GitHub webhook payloads. |
 | `MENTRA_REFERENCE_CARD_PATH` | Optional override for the reference card endpoint path appended to a session `baseUrl`. Defaults to `/api/v1/reference-cards`. |
+| `MENTRA_BASE_URL` | Optional default mentraOS base URL for sessions. Can be overridden per session. |
+| `MENTRA_API_KEY` | Optional default mentraOS API key for authentication. Can be overridden per session. |
+| `MENTRA_ACCESS_TOKEN` | Optional default mentraOS access token for authentication. Can be overridden per session. |
 
 ## mentraOS Session Flow
 
@@ -46,11 +49,79 @@ Environment variables (`local.settings.json` for local runs):
      "accessToken": "<mentra-token>"
    }
    ```
+   
+   Alternative with API key:
+   ```json
+   {
+     "identifier": "team-octocats",
+     "deviceId": "G1-42", 
+     "ownerId": "octocat",
+     "baseUrl": "https://mentraos.example.com",
+     "apiKey": "<mentra-api-key>"
+   }
+   ```
+   
+   Or use environment variable defaults:
+   ```json
+   {
+     "identifier": "team-octocats",
+     "deviceId": "G1-42",
+     "ownerId": "octocat"
+   }
+   ```
+   
    The response includes the GitHub webhook URL (`/api/github/{identifier}`).
 3. **Webhook delivery** – Configure GitHub to POST to the provided webhook URL with the same shared secret configured in the function app.
 4. **Session cleanup** – `DELETE /api/sessions/{identifier}` when the glasses disconnect.
 
 The identifier associates webhook deliveries with the owning glasses. Future persistence can be introduced by swapping the session store implementation in `src/services/sessionStore.js`.
+
+## mentraOS Integration Setup
+
+### API Credentials
+
+You need either an API key or access token from your mentraOS instance:
+
+1. **API Key**: Use the `X-API-Key` header for authentication
+2. **Access Token**: Use the `Bearer` token for OAuth-style authentication
+
+### Configuration Options
+
+You can provide mentraOS credentials in three ways:
+
+1. **Per-session** (recommended for multi-tenant scenarios):
+   ```json
+   {
+     "identifier": "user-session",
+     "deviceId": "G1-123",
+     "baseUrl": "https://your-mentra-instance.com",
+     "apiKey": "your-api-key"
+   }
+   ```
+
+2. **Environment variables** (recommended for single-tenant deployments):
+   ```bash
+   MENTRA_BASE_URL=https://your-mentra-instance.com
+   MENTRA_API_KEY=your-api-key
+   # OR
+   MENTRA_ACCESS_TOKEN=your-access-token
+   ```
+
+3. **Mixed approach** (environment defaults with per-session overrides):
+   ```json
+   {
+     "identifier": "special-session",
+     "deviceId": "G1-456",
+     "baseUrl": "https://different-instance.com"
+   }
+   ```
+
+### Validation
+
+The application validates that:
+- Each session has either `pushUrl` or `baseUrl` configured
+- Each session has either `accessToken` or `apiKey` for authentication
+- Required fields `identifier` and `deviceId` are provided
 
 ## GitHub Webhook Support
 
@@ -83,7 +154,27 @@ The identifier associates webhook deliveries with the owning glasses. Future per
    ```bash
    cp local.settings.json.template local.settings.json
    ```
-3. Populate `local.settings.json` with the environment variables listed above.
+3. Configure mentraOS integration in `local.settings.json`:
+   ```json
+   {
+     "Values": {
+       "MENTRA_BASE_URL": "https://your-mentra-instance.com",
+       "MENTRA_API_KEY": "your-api-key-here",
+       "GITHUB_WEBHOOK_SECRET": "optional-github-secret"
+     }
+   }
+   ```
+   
+   Alternatively, use access token instead of API key:
+   ```json
+   {
+     "Values": {
+       "MENTRA_BASE_URL": "https://your-mentra-instance.com", 
+       "MENTRA_ACCESS_TOKEN": "your-access-token-here"
+     }
+   }
+   ```
+4. See **mentraOS Integration Setup** section below for detailed credential configuration options.
 
 ## Local Development
 

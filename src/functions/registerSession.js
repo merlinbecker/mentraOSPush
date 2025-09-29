@@ -17,16 +17,34 @@ app.http('registerSession', {
         };
       }
 
-      const stored = sessionStore.registerSession({
+      // Use environment variables as defaults if not provided in payload
+      const sessionData = {
         identifier,
         deviceId,
         ownerId,
-        baseUrl,
+        baseUrl: baseUrl || process.env.MENTRA_BASE_URL,
         pushUrl,
-        accessToken,
-        apiKey,
+        accessToken: accessToken || process.env.MENTRA_ACCESS_TOKEN,
+        apiKey: apiKey || process.env.MENTRA_API_KEY,
         referenceCardPath,
-      });
+      };
+
+      // Validate that we have either baseUrl/pushUrl and credentials
+      if (!sessionData.pushUrl && !sessionData.baseUrl) {
+        return {
+          status: 400,
+          jsonBody: { message: 'Either pushUrl or baseUrl must be provided' },
+        };
+      }
+
+      if (!sessionData.accessToken && !sessionData.apiKey) {
+        return {
+          status: 400,
+          jsonBody: { message: 'Either accessToken or apiKey must be provided for mentraOS authentication' },
+        };
+      }
+
+      const stored = sessionStore.registerSession(sessionData);
 
       context.log(`Registered mentraOS session ${identifier} (${deviceId})`);
 
