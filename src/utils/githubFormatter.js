@@ -22,7 +22,7 @@ function buildPushCard(payload) {
   return {
     title,
     body: bodyLines.join('\n'),
-    durationSeconds: 15,
+    durationSeconds: 10,
   };
 }
 
@@ -42,7 +42,7 @@ function buildPullRequestCard(payload) {
   return {
     title: `PR · ${title}`,
     body: bodyLines.join('\n'),
-    durationSeconds: 15,
+    durationSeconds: 10,
   };
 }
 
@@ -62,7 +62,7 @@ function buildIssueCard(payload) {
   return {
     title: 'Issue Notification',
     body: bodyLines.join('\n'),
-    durationSeconds: 15,
+    durationSeconds: 10,
   };
 }
 
