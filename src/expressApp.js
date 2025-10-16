@@ -286,7 +286,7 @@ function createDashboardHtml() {
 </html>`;
 }
 
-function registerSession(req, res, { allowMentraFields = false, message = 'Session registered' } = {}) {
+async function registerSession(req, res, { allowMentraFields = false, message = 'Session registered' } = {}) {
   const payload = req.body || {};
   console.log('🔵 Session registration request received');
   console.log('📄 Registration payload:', JSON.stringify(payload, null, 2));
@@ -321,6 +321,31 @@ function registerSession(req, res, { allowMentraFields = false, message = 'Sessi
   const baseUrl = getPublicBaseUrl(req);
   const webhookEndpoint = `${baseUrl}/api/github/${encodeURIComponent(stored.identifier)}`;
   console.log('🔗 Generated webhook endpoint:', webhookEndpoint);
+
+  // Send confirmation Reference Card to glasses (onSession lifecycle)
+  const confirmationCard = {
+    title: '✅ Session Connected',
+    body: [
+      'GitHub Integration Active',
+      `Session: ${stored.identifier}`,
+      `Device: ${stored.deviceId}`,
+      'Ready to receive webhook notifications.'
+    ].join('\n'),
+    durationSeconds: 10,
+  };
+
+  console.log('📤 Sending onSession confirmation card to glasses');
+  try {
+    const cardResult = await sendReferenceCard(stored, confirmationCard);
+    if (cardResult.success) {
+      console.log('✅ Session confirmation card sent successfully');
+    } else {
+      console.warn('⚠️ Failed to send session confirmation card:', cardResult.error);
+    }
+  } catch (error) {
+    console.error('💥 Error sending session confirmation card:', error);
+    // Don't fail the registration if card sending fails
+  }
 
   return res.status(201).json({
     message,
