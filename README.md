@@ -70,8 +70,8 @@ Environment variables (`local.settings.json` for local runs):
    }
    ```
    
-   The response includes the GitHub webhook URL (`/api/github/{identifier}`).
-3. **Webhook delivery** – Configure GitHub to POST to the provided webhook URL with the same shared secret configured in the function app.
+   Upon successful registration, the glasses immediately receive a confirmation Reference Card (10 seconds display) indicating the session is connected and ready to receive notifications. The response includes the GitHub webhook URL (`/api/github/{identifier}`).
+3. **Webhook delivery** – Configure GitHub to POST to the provided webhook URL with the same shared secret configured in the function app. Each webhook event is formatted as a Reference Card and displayed on the glasses for 10 seconds.
 4. **Session cleanup** – `DELETE /api/sessions/{identifier}` when the glasses disconnect.
 
 The identifier associates webhook deliveries with the owning glasses. Future persistence can be introduced by swapping the session store implementation in `src/services/sessionStore.js`.
