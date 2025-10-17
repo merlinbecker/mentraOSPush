@@ -1,276 +1,117 @@
-# mentraOSPush
+# GitHub MentraOS Webhook Relay
 
-Gateway Azure Function that receives GitHub webhooks and relays them to mentraOS G1 glasses as reference cards. The app also exposes the mandatory mentraOS application manifest and an in-memory session registry for connected glasses.
+**Minimale Express App mit MentraOS SDK Integration**
 
-## Architecture at a Glance
+Eine einfache Express-Anwendung, die GitHub Webhooks empfängt und diese als Reference Cards an MentraOS G1 Brillen weiterleitet.
 
-```
-GitHub Webhook  ─┐              ┌─>  mentraOS Reference Card API
-                 ├─> Azure Function (Node.js) ─┤
-mentraOS G1 App ─┘              └─>  Dashboard (PicoCSS + Alpine.js)
-```
+## 🚀 Setup
 
-1. A G1 device registers itself with an identifier via `POST /api/sessions`.
-2. The identifier is shared with the GitHub repository webhook configuration (`https://<app>/api/github/{identifier}`).
-3. Incoming GitHub events are verified, normalised into mentraOS reference card payloads and forwarded to the registered session.
-4. Deliveries and sessions are tracked in memory and surfaced through a lightweight dashboard at `/api/dashboard`.
-
-> **Note**: The session store is in-memory only. Restarting the function app clears all registrations. The code is structured so a Cosmos DB or Storage Table implementation can replace the current store later.
-
-## Prerequisites
-
-- Node.js 18.0.0 or later
-- Azure Functions Core Tools v4 (for local development)
-- Azure subscription (for deployment)
-- A mentraOS API endpoint (base URL or direct push URL) and credential (access token or API key)
-
-## Configuration
-
-Environment variables (`local.settings.json` for local runs):
-
-| Key | Description |
-| --- | --- |
-| `GITHUB_WEBHOOK_SECRET` | Optional shared secret used to validate GitHub webhook payloads. |
-| `MENTRA_REFERENCE_CARD_PATH` | Optional override for the reference card endpoint path appended to a session `baseUrl`. Defaults to `/api/v1/reference-cards`. |
-| `MENTRA_BASE_URL` | Optional default mentraOS base URL for sessions. Can be overridden per session. |
-| `MENTRA_API_KEY` | Optional default mentraOS API key for authentication. Can be overridden per session. |
-| `MENTRA_ACCESS_TOKEN` | Optional default mentraOS access token for authentication. Can be overridden per session. |
-
-## mentraOS Session Flow
-
-1. **Retrieve manifest** – `GET /api/manifest` responds with metadata describing the gateway and its capabilities.
-2. **Register session** – `POST /api/sessions` with JSON body:
-   ```json
-   {
-     "identifier": "team-octocats",
-     "deviceId": "G1-42",
-     "ownerId": "octocat",
-     "baseUrl": "https://mentraos.example.com",
-     "accessToken": "<mentra-token>"
-   }
-   ```
-   
-   Alternative with API key:
-   ```json
-   {
-     "identifier": "team-octocats",
-     "deviceId": "G1-42", 
-     "ownerId": "octocat",
-     "baseUrl": "https://mentraos.example.com",
-     "apiKey": "<mentra-api-key>"
-   }
-   ```
-   
-   Or use environment variable defaults:
-   ```json
-   {
-     "identifier": "team-octocats",
-     "deviceId": "G1-42",
-     "ownerId": "octocat"
-   }
-   ```
-   
-   The response includes the GitHub webhook URL (`/api/github/{identifier}`).
-3. **Webhook delivery** – Configure GitHub to POST to the provided webhook URL with the same shared secret configured in the function app.
-4. **Session cleanup** – `DELETE /api/sessions/{identifier}` when the glasses disconnect.
-
-The identifier associates webhook deliveries with the owning glasses. Future persistence can be introduced by swapping the session store implementation in `src/services/sessionStore.js`.
-
-## mentraOS Integration Setup
-
-### API Credentials
-
-You need either an API key or access token from your mentraOS instance:
-
-1. **API Key**: Use the `X-API-Key` header for authentication
-2. **Access Token**: Use the `Bearer` token for OAuth-style authentication
-
-### Configuration Options
-
-You can provide mentraOS credentials in three ways:
-
-1. **Per-session** (recommended for multi-tenant scenarios):
-   ```json
-   {
-     "identifier": "user-session",
-     "deviceId": "G1-123",
-     "baseUrl": "https://your-mentra-instance.com",
-     "apiKey": "your-api-key"
-   }
-   ```
-
-2. **Environment variables** (recommended for single-tenant deployments):
-   ```bash
-   MENTRA_BASE_URL=https://your-mentra-instance.com
-   MENTRA_API_KEY=your-api-key
-   # OR
-   MENTRA_ACCESS_TOKEN=your-access-token
-   ```
-
-3. **Mixed approach** (environment defaults with per-session overrides):
-   ```json
-   {
-     "identifier": "special-session",
-     "deviceId": "G1-456",
-     "baseUrl": "https://different-instance.com"
-   }
-   ```
-
-### Validation
-
-The application validates that:
-- Each session has either `pushUrl` or `baseUrl` configured
-- Each session has either `accessToken` or `apiKey` for authentication
-- Required fields `identifier` and `deviceId` are provided
-
-## GitHub Webhook Support
-
-- Signature validation via `X-Hub-Signature-256` when a secret is configured.
-- Events formatted into mentraOS reference cards:
-  - `push` (includes branch, compare URL and up to three commits)
-  - `pull_request` updates
-  - `issues` updates
-  - Other events fall back to a generic card containing the action and sender.
-- Each accepted delivery is tracked in memory and surfaced to the dashboard and status API.
-
-## Endpoints
-
-| Method | Route | Description |
-| --- | --- | --- |
-| `GET` | `/api/manifest` | mentraOS application manifest. |
-| `POST` | `/api/sessions` | Register a G1 session with identifier, device and mentraOS connection details. |
-| `DELETE` | `/api/sessions/{identifier}` | Remove a registered session. |
-| `POST` | `/api/github/{identifier}` | GitHub webhook receiver; relays payload to the associated session. |
-| `GET` | `/api/status` | JSON summary of sessions and last three deliveries. |
-| `GET` | `/api/dashboard` | PicoCSS/Alpine.js dashboard visualising sessions and deliveries. |
-
-## Setup
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Copy and adjust local settings:
-   ```bash
-   cp local.settings.json.template local.settings.json
-   ```
-3. Configure mentraOS integration in `local.settings.json`:
-   ```json
-   {
-     "Values": {
-       "MENTRA_BASE_URL": "https://your-mentra-instance.com",
-       "MENTRA_API_KEY": "your-api-key-here",
-       "GITHUB_WEBHOOK_SECRET": "optional-github-secret"
-     }
-   }
-   ```
-   
-   Alternatively, use access token instead of API key:
-   ```json
-   {
-     "Values": {
-       "MENTRA_BASE_URL": "https://your-mentra-instance.com", 
-       "MENTRA_ACCESS_TOKEN": "your-access-token-here"
-     }
-   }
-   ```
-4. See **mentraOS Integration Setup** section below for detailed credential configuration options.
-
-## Local Development
-
-Install Azure Functions Core Tools v4 if not already present:
-
+### 1. Dependencies installieren
 ```bash
-npm install -g azure-functions-core-tools@4 --unsafe-perm true
+npm install
 ```
 
-Run the function app locally:
-
+### 2. Environment konfigurieren
 ```bash
-func start
+cp .env.template .env
+# .env Datei bearbeiten und API Keys eintragen
 ```
 
-- Dashboard: `http://localhost:7071/api/dashboard`
-- Status API: `http://localhost:7071/api/status`
-
-## Project Structure
-
-```
-├── src/
-│   ├── app.js                         # Function registrations
-│   ├── functions/
-│   │   ├── dashboardPage.js           # PicoCSS/Alpine dashboard
-│   │   ├── endSession.js              # DELETE /api/sessions/{identifier}
-│   │   ├── githubWebhook.js           # GitHub webhook receiver
-│   │   ├── mentraManifest.js          # mentraOS manifest
-│   │   ├── registerSession.js         # POST /api/sessions
-│   │   └── statusApi.js               # GET /api/status
-│   ├── services/
-│   │   ├── mentraClient.js            # Reference card delivery helper
-│   │   └── sessionStore.js            # In-memory session & push store
-│   └── utils/
-│       └── githubFormatter.js         # GitHub event → reference card mapper
-├── host.json
-├── local.settings.json.template
-└── package.json
-```
-
-## Deployment
-
-Publish the function app using the Azure Functions tooling of your choice. Example with the Azure CLI:
-
+### 3. Server starten
 ```bash
-func azure functionapp publish <YOUR_FUNCTION_APP_NAME>
+# Produktionsstart
+npm start
+
+# Development mit Auto-Reload
+npm run dev
 ```
 
-## Next Steps
+## 🔧 Konfiguration
 
-- Replace the in-memory store with Cosmos DB, Azure Cache for Redis or Table Storage for durability.
-- Extend webhook support to additional providers (e.g., Azure DevOps) while reusing the mentraOS delivery pipeline.
-- Add authentication for the dashboard and status API before exposing them publicly.
+### Environment Variablen (`.env`)
+```bash
+MENTRAOS_API_KEY=your_mentraos_api_key_here
+PACKAGE_NAME=com.mentraos.github-webhook-relay
+PORT=3000
+GITHUB_WEBHOOK_SECRET=your_github_webhook_secret_here
+```
 
-## Troubleshooting
+## 📱 MentraOS App Setup
 
-### Common Configuration Issues
+### 1. MentraOS Console
+- Gehe zu [MentraOS Console](https://console.mentra.glass)
+- Erstelle neue App mit Package Name: `com.mentraos.github-webhook-relay`
+- Webhook URL eintragen: `http://localhost:3000/webhook`
 
-**"Either pushUrl or baseUrl must be provided"**
-- Ensure `MENTRA_BASE_URL` is set in your environment variables, or
-- Provide `baseUrl` or `pushUrl` in your session registration payload
+### 2. Brille verbinden
+- App auf G1 Brille installieren
+- Automatische Verbindung über MentraOS SDK
 
-**"Either accessToken or apiKey must be provided for mentraOS authentication"**
-- Set `MENTRA_API_KEY` or `MENTRA_ACCESS_TOKEN` in your environment variables, or
-- Provide `apiKey` or `accessToken` in your session registration payload
+## 🔗 GitHub Webhook Setup
 
-**"Session does not include a pushUrl or baseUrl"**
-- This error occurs during webhook delivery if the session lacks proper URL configuration
-- Verify your session was registered with valid `baseUrl` or `pushUrl`
+### Für jede GitHub Session:
+1. Session ID aus MentraOS App Status abrufen: `GET /status`
+2. GitHub Repository Settings → Webhooks
+3. Webhook URL: `http://localhost:3000/github/{sessionId}`
+4. Content Type: `application/json`
+5. Secret: Dein `GITHUB_WEBHOOK_SECRET`
+6. Events: `push`, `pull_request`, `issues` (oder alle)
 
-### Testing Your Setup
+## 📍 API Endpoints
 
-1. **Verify environment variables**:
-   ```bash
-   func settings list
-   ```
+- **`/webhook`** - MentraOS SDK Webhook (automatisch)
+- **`/github/{sessionId}`** - GitHub Webhooks empfangen
+- **`/status`** - Server Status und aktive Sessions
+- **`/test/{sessionId}`** - Test Message an Session senden
+- **`/health`** - Health Check
 
-2. **Test session registration**:
-   ```bash
-   curl -X POST http://localhost:7071/api/sessions \
-     -H "Content-Type: application/json" \
-     -d '{"identifier":"test","deviceId":"G1-123","ownerId":"user"}'
-   ```
+## 🔍 Debugging
 
-3. **Check registered sessions**:
-   ```bash
-   curl http://localhost:7071/api/status
-   ```
+### Server Status prüfen
+```bash
+curl http://localhost:3000/status
+```
 
-4. **View the dashboard**: `http://localhost:7071/api/dashboard`
+### Test Message senden
+```bash
+curl -X POST http://localhost:3000/test/{sessionId}
+```
 
-### mentraOS Integration Checklist
+### Logs anschauen
+Die App loggt alle Events mit Pino Logger in der Konsole.
 
-- [ ] mentraOS instance URL is accessible
-- [ ] API key or access token is valid and has proper permissions
-- [ ] Environment variables are configured correctly
-- [ ] Session registration succeeds with proper validation
-- [ ] Webhook endpoint is reachable from GitHub
-- [ ] Reference cards are being delivered to mentraOS successfully
+## 🌐 URLs für MentraOS App
+
+**Lokale Development:**
+- Webhook URL: `http://localhost:3000/webhook`
+- Port: `3000`
+
+**Production Deployment:**
+- Webhook URL: `https://yourdomain.com/webhook`  
+- Port: `80/443` (je nach Setup)
+
+## 🔄 Flow
+
+1. **Brille verbindet sich** → MentraOS SDK ruft `/webhook` auf
+2. **`onSession()` Handler** → Welcome Message, Session speichern
+3. **GitHub Webhook** → `POST /github/{sessionId}`
+4. **Reference Card** → Direkt über MentraOS SDK an Brille
+
+## ⚠️ Known Issues
+
+### SDK Error: "Unrecognized message type: capabilities_update"
+**Status:** Bekanntes Problem, Workaround implementiert ✅
+
+Das MentraOS SDK (neueste Version) wirft harmlose Fehler für neue Message-Typen. Diese werden automatisch unterdrückt.
+
+**Details:** Siehe `SDK-ERRORS.md` und `WORKAROUND-SDK-ERRORS.md`
+
+**Log-Output:**
+```
+⚠️  SDK Error Workaround active: Suppressing "capabilities_update" errors
+🔇 [SDK Workaround] Suppressed: capabilities_update message (harmless)
+```
+
+**Impact:** Keine - App funktioniert normal trotz Fehler
+
+**TODO:** Workaround entfernen, wenn SDK das Problem behebt
