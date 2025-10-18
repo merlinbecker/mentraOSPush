@@ -6,10 +6,11 @@ Express-Anwendung, die GitHub Webhooks empfängt und diese als Reference Cards a
 ## Aktuelle Konfiguration
 
 ### Server-Setup
-- **Port**: 5000 (Replit-Standard)
+- **Port**: 5000 (Replit-Standard, extern über Port 80 erreichbar)
 - **Package Name**: `de.merlinbecker.webhookproxy`
-- **Deployment-Typ**: VM (für persistente WebSocket-Verbindungen)
+- **Deployment-Typ**: Reserved VM (für persistente WebSocket-Verbindungen)
 - **Node.js Version**: >=18.0.0
+- **Host Binding**: 0.0.0.0 (via MentraOS SDK, für Cloud-Zugriff erforderlich)
 
 ### Umgebungsvariablen
 Die folgenden Secrets sind konfiguriert:
@@ -64,11 +65,17 @@ https://61b781e2-0527-4a7b-8ad6-bbdbff1e74aa-00-n0ppkdngl338.picard.replit.dev/w
 ### SDK Error Workaround
 Die App enthält einen Workaround für harmlose SDK-Fehler bei `capabilities_update` Messages. Diese Fehler werden automatisch unterdrückt und beeinflussen die Funktionalität nicht.
 
-### VM Deployment
-Die App verwendet VM-Deployment (nicht Autoscale), weil:
+### Reserved VM Deployment
+Die App verwendet Reserved VM-Deployment (nicht Autoscale), weil:
 - Persistente WebSocket-Verbindungen zu den Brillen erforderlich sind
 - Session-Daten im Speicher gehalten werden
 - Kontinuierlicher Betrieb ohne Restart notwendig ist
+
+### Deployment-Konfiguration
+- **Run-Befehl**: `PORT=5000 npm start` (stellt sicher, dass Port 5000 verwendet wird)
+- **Port-Forwarding**: Interner Port 5000 → Externer Port 80
+- **Environment**: PORT wird explizit auf 5000 gesetzt
+- **Host**: Bindet an 0.0.0.0 (über MentraOS SDK) für externe Erreichbarkeit
 
 ## Entwicklung
 
