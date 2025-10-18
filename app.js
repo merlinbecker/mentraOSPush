@@ -510,6 +510,7 @@ class GitHubMentraOSApp extends TpaServer {
 
     // Dashboard UI
     app.get('/dashboard', (req, res) => {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
       const html = `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -526,14 +527,14 @@ class GitHubMentraOSApp extends TpaServer {
         .btn { background: #0366d6; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
         .btn:hover { background: #0256cc; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-        pre { background: #f6f8fa; padding: 12px; border-radius: 4px; overflow-x: auto; }
+        pre { background: #f6f8fa; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🔗 GitHub MentraOS Relay</h1>
-        <p>Package: <strong>de.merlinbecker.webhookproxy</strong></p>
-        <p>Server läuft auf Port <strong>3000</strong></p>
+        <p>Package: <strong>${PACKAGE_NAME}</strong></p>
+        <p>Server läuft auf Port <strong>${PORT}</strong></p>
     </div>
 
     <div class="grid">
@@ -547,9 +548,9 @@ class GitHubMentraOSApp extends TpaServer {
         <div class="card">
             <h2>🔗 MentraOS Setup</h2>
             <p><strong>Webhook URL für Console:</strong></p>
-            <pre>http://localhost:3000/webhook</pre>
+            <pre>${baseUrl}/webhook</pre>
             <p><strong>Package Name:</strong></p>
-            <pre>de.merlinbecker.webhookproxy</pre>
+            <pre>${PACKAGE_NAME}</pre>
         </div>
     </div>
 
@@ -564,16 +565,18 @@ class GitHubMentraOSApp extends TpaServer {
         <h2>📖 Verwendung</h2>
         <ol>
             <li>In <a href="https://console.mentra.glass" target="_blank">MentraOS Console</a> neue App erstellen</li>
-            <li>Package Name: <code>de.merlinbecker.webhookproxy</code></li>
-            <li>Webhook URL: <code>http://localhost:3000/webhook</code></li>
+            <li>Package Name: <code>${PACKAGE_NAME}</code></li>
+            <li>Webhook URL: <code>${baseUrl}/webhook</code></li>
             <li>App auf G1 Brille installieren</li>
             <li>GitHub Repository → Settings → Webhooks</li>
-            <li><strong>Empfohlen:</strong> URL: <code>http://localhost:3000/github</code> (sendet an alle Brillen)</li>
-            <li>Alternativ: <code>http://localhost:3000/github/[SESSION_ID]</code> (spezifische Brille)</li>
+            <li><strong>Empfohlen:</strong> URL: <code>${baseUrl}/github</code> (sendet an alle Brillen)</li>
+            <li>Alternativ: <code>${baseUrl}/github/[SESSION_ID]</code> (spezifische Brille)</li>
         </ol>
     </div>
 
     <script>
+        const baseUrl = window.location.origin;
+        
         async function loadStatus() {
             try {
                 const response = await fetch('/status');
@@ -592,7 +595,7 @@ class GitHubMentraOSApp extends TpaServer {
                             <p><strong>Verbunden:</strong> \${new Date(session.connectedAt).toLocaleString('de-DE')}</p>
                             <p><strong>Letzte Aktivität:</strong> \${session.lastActivity ? new Date(session.lastActivity).toLocaleString('de-DE') : 'Nie'}</p>
                             <p><strong>GitHub Webhook URL:</strong></p>
-                            <pre>http://localhost:3000/github/\${session.sessionId}</pre>
+                            <pre>\${baseUrl}/github/\${session.sessionId}</pre>
                             <button class="btn" onclick="testSession('\${session.sessionId}')">🧪 Test Message</button>
                         </div>
                     \`).join('');
