@@ -3,6 +3,9 @@
 **Datum:** 17. Oktober 2025  
 **Projekt:** mentraOSPush (GitHub Webhook → MentraOS G1 Glasses)
 
+> **Hinweis:** Diese Erkenntnisse wurden in die arc42 Architekturdokumentation übernommen.  
+> Siehe [documentation/arc42.md](documentation/arc42.md) für die vollständige, konsolidierte Dokumentation.
+
 ---
 
 ## 1. Was wurde gemacht

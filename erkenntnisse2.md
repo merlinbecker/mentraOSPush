@@ -2,6 +2,9 @@
 
 Datum: 2025-10-17
 
+> **Hinweis:** Diese Erkenntnisse wurden in die arc42 Architekturdokumentation übernommen.  
+> Siehe [documentation/arc42.md](documentation/arc42.md) für die vollständige, konsolidierte Dokumentation.
+
 Kurzfassung
 -----------
 Diese Datei fasst die während der Entwicklung und Problemlösung aufgetretenen Fehler, deren Ursachen und die implementierten Workarounds zusammen. Ziel war, GitHub-Webhooks zuverlässig zu empfangen, korrekt zu verifizieren und an MentraOS-Sessions weiterzuleiten.

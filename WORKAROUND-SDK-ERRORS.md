@@ -1,5 +1,8 @@
 # SDK Error Workaround - Implementation Guide
 
+> **Hinweis:** Diese Dokumentation wurde in die arc42 Architekturdokumentation übernommen.  
+> Siehe [documentation/arc42.md](documentation/arc42.md) für die vollständige Dokumentation.
+
 ## Problem
 MentraOS SDK (aktuellste Version, geprüft am 17.10.2025) wirft Fehler:
 ```

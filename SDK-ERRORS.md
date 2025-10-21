@@ -1,5 +1,8 @@
 # MentraOS SDK - Bekannte Fehler
 
+> **Hinweis:** Diese Dokumentation wurde in die arc42 Architekturdokumentation übernommen.  
+> Siehe [documentation/arc42.md - Risiken und technische Schulden](documentation/arc42.md#risiken-und-technische-schulden) für die vollständige Dokumentation.
+
 ## ⚠️ "Unrecognized message type: capabilities_update"
 
 ### Beschreibung
