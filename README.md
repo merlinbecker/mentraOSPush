@@ -4,7 +4,18 @@
 
 Eine einfache Express-Anwendung, die GitHub Webhooks empfängt und diese als Reference Cards an MentraOS G1 Brillen weiterleitet.
 
-## 🚀 Setup
+## 📖 Dokumentation
+
+**Vollständige Architekturdokumentation:** [documentation/arc42.md](documentation/arc42.md)
+
+Die arc42 Dokumentation enthält:
+- Systemübersicht und Qualitätsziele
+- Detaillierte Bausteinsicht mit C4 Diagrammen
+- Laufzeitsicht und Deployment
+- Architekturentscheidungen (ADRs)
+- Bekannte Probleme und technische Schulden
+
+## 🚀 Quick Start
 
 ### 1. Dependencies installieren
 ```bash
@@ -49,18 +60,20 @@ GITHUB_WEBHOOK_SECRET=your_github_webhook_secret_here
 
 ## 🔗 GitHub Webhook Setup
 
-### Für jede GitHub Session:
-1. Session ID aus MentraOS App Status abrufen: `GET /status`
-2. GitHub Repository Settings → Webhooks
-3. Webhook URL: `http://localhost:3000/github/{sessionId}`
-4. Content Type: `application/json`
-5. Secret: Dein `GITHUB_WEBHOOK_SECRET`
-6. Events: `push`, `pull_request`, `issues` (oder alle)
+**Empfohlener Broadcast-Modus:**
+1. GitHub Repository Settings → Webhooks
+2. Webhook URL: `http://localhost:3000/github` (ohne Session-ID)
+3. Content Type: `application/json`
+4. Secret: Dein `GITHUB_WEBHOOK_SECRET`
+5. Events: `push`, `pull_request`, `issues` (oder alle)
+
+> **Hinweis:** Der Broadcast-Endpoint sendet Events an alle verbundenen Brillen.
 
 ## 📍 API Endpoints
 
 - **`/webhook`** - MentraOS SDK Webhook (automatisch)
-- **`/github/{sessionId}`** - GitHub Webhooks empfangen
+- **`/github`** - GitHub Webhooks broadcast zu allen Sessions
+- **`/github/{sessionId}`** - GitHub Webhooks an spezifische Session
 - **`/status`** - Server Status und aktive Sessions
 - **`/test/{sessionId}`** - Test Message an Session senden
 - **`/health`** - Health Check
@@ -80,38 +93,16 @@ curl -X POST http://localhost:3000/test/{sessionId}
 ### Logs anschauen
 Die App loggt alle Events mit Pino Logger in der Konsole.
 
-## 🌐 URLs für MentraOS App
+## ⚠️ Bekannte Probleme
 
-**Lokale Development:**
-- Webhook URL: `http://localhost:3000/webhook`
-- Port: `3000`
+Siehe [documentation/arc42.md - Risiken und technische Schulden](documentation/arc42.md#risiken-und-technische-schulden) für Details zu:
+- SDK Error Workarounds
+- In-Memory Session Storage Limitierungen
+- Weitere technische Schulden
 
-**Production Deployment:**
-- Webhook URL: `https://yourdomain.com/webhook`  
-- Port: `80/443` (je nach Setup)
-
-## 🔄 Flow
+## 🔄 Vereinfachter Flow
 
 1. **Brille verbindet sich** → MentraOS SDK ruft `/webhook` auf
 2. **`onSession()` Handler** → Welcome Message, Session speichern
-3. **GitHub Webhook** → `POST /github/{sessionId}`
-4. **Reference Card** → Direkt über MentraOS SDK an Brille
-
-## ⚠️ Known Issues
-
-### SDK Error: "Unrecognized message type: capabilities_update"
-**Status:** Bekanntes Problem, Workaround implementiert ✅
-
-Das MentraOS SDK (neueste Version) wirft harmlose Fehler für neue Message-Typen. Diese werden automatisch unterdrückt.
-
-**Details:** Siehe `SDK-ERRORS.md` und `WORKAROUND-SDK-ERRORS.md`
-
-**Log-Output:**
-```
-⚠️  SDK Error Workaround active: Suppressing "capabilities_update" errors
-🔇 [SDK Workaround] Suppressed: capabilities_update message (harmless)
-```
-
-**Impact:** Keine - App funktioniert normal trotz Fehler
-
-**TODO:** Workaround entfernen, wenn SDK das Problem behebt
+3. **GitHub Webhook** → `POST /github` (Broadcast)
+4. **Reference Cards** → Direkt über MentraOS SDK an alle Brillen
