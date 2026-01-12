@@ -119,6 +119,24 @@ class SessionManager {
   }
 
   /**
+   * Send a test message to a specific session
+   */
+  async sendTestMessage(sessionId) {
+    const storedSession = this.activeSessions.get(sessionId);
+    if (!storedSession) {
+      throw new Error(`No active session found for ${sessionId}`);
+    }
+
+    await storedSession.session.layouts.showReferenceCard(
+      '🧪 Test Message',
+      `Test erfolgreich!\n\nSession: ${sessionId}\nZeit: ${new Date().toLocaleString('de-DE')}`,
+      { durationMs: 10000 }
+    );
+
+    this.logger.info(`✅ Test message sent to ${sessionId}`);
+  }
+
+  /**
    * Get session by ID
    */
   getSession(sessionId) {

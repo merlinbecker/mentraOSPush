@@ -363,23 +363,14 @@ class GitHubMentraOSApp extends TpaServer {
     // Test Message Endpoint
     app.post('/test/:sessionId', async (req, res) => {
       const { sessionId } = req.params;
-      const storedSession = this.sessionManager.getSession(sessionId);
-
-      if (!storedSession) {
-        return res.status(404).json({ error: 'Session not found' });
-      }
 
       try {
-        await storedSession.session.layouts.showReferenceCard(
-          '🧪 Test Message',
-          `Test erfolgreich!\n\nSession: ${sessionId}\nZeit: ${new Date().toLocaleString('de-DE')}`,
-          {
-            durationMs: 10000
-          }
-        );
-
+        await this.sessionManager.sendTestMessage(sessionId);
         res.json({ success: true, message: 'Test message sent' });
       } catch (error) {
+        if (error.message.includes('No active session')) {
+          return res.status(404).json({ error: 'Session not found' });
+        }
         res.status(500).json({ error: error.message });
       }
     });
