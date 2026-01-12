@@ -97,7 +97,14 @@ class WebhookHandler {
       throw new Error('Invalid GitHub webhook signature');
     }
 
-    const payload = JSON.parse(payloadString);
+    let payload;
+    try {
+      payload = JSON.parse(payloadString);
+    } catch (error) {
+      this.logger.error(`❌ Invalid JSON payload: ${error.message}`);
+      throw new Error('Invalid JSON payload');
+    }
+
     const card = GitHubEventFormatter.createCardFromEvent(event, payload);
     this.logger.info(`🃏 Created card: ${card.title}`);
 
@@ -116,7 +123,14 @@ class WebhookHandler {
       throw new Error('Invalid GitHub webhook signature');
     }
 
-    const payload = JSON.parse(payloadString);
+    let payload;
+    try {
+      payload = JSON.parse(payloadString);
+    } catch (error) {
+      this.logger.error(`❌ Invalid JSON payload: ${error.message}`);
+      throw new Error('Invalid JSON payload');
+    }
+
     const card = GitHubEventFormatter.createCardFromEvent(event, payload);
 
     const result = await this.sessionManager.broadcastCard(card);
