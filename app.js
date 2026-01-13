@@ -2,72 +2,8 @@
 require('dotenv').config();
 
 const { TpaServer } = require('@mentra/sdk');
-const crypto = require('node:crypto');
-
-// GitHub Event Formatter - inline für minimalen Code
-function formatCommit(commit) {
-  const id = commit.id ? commit.id.substring(0, 7) : 'unknown';
-  const message = commit.message ? commit.message.split('\n')[0] : 'No message';
-  const author = commit.author && commit.author.name ? commit.author.name : 'unknown';
-  return `#${id} · ${message} (${author})`;
-}
-
-function createCardFromEvent(event, payload) {
-  const repo = payload.repository?.full_name || payload.repository?.name || 'repository';
-  const sender = payload.sender?.login || 'unknown';
-  
-  switch (event) {
-    case 'push':
-      const pusher = payload.pusher?.name || sender;
-      const branch = payload.ref?.replace('refs/heads/', '') || 'unknown';
-      const commitCount = payload.commits?.length || 0;
-      const commits = (payload.commits || []).slice(0, 3).map(formatCommit);
-      
-      return {
-        title: `${repo} · ${branch}`,
-        body: [
-          `${pusher} pushed ${commitCount} commit${commitCount === 1 ? '' : 's'}`,
-          ...commits,
-          payload.compare ? `Compare: ${payload.compare}` : ''
-        ].filter(Boolean).join('\n'),
-        durationSeconds: 15,
-      };
-      
-    case 'pull_request':
-      const pr = payload.pull_request || {};
-      return {
-        title: `PR #${payload.number} · ${pr.title || 'Pull Request'}`,
-        body: [
-          `${repo} ${payload.action} by ${sender}`,
-          `State: ${pr.state}`,
-          pr.html_url || ''
-        ].filter(Boolean).join('\n'),
-        durationSeconds: 15,
-      };
-      
-    case 'issues':
-      const issue = payload.issue || {};
-      return {
-        title: `Issue #${issue.number} · ${issue.title || 'Issue'}`,
-        body: [
-          `${repo} ${payload.action} by ${sender}`,
-          issue.html_url || ''
-        ].filter(Boolean).join('\n'),
-        durationSeconds: 15,
-      };
-      
-    default:
-      return {
-        title: `GitHub ${event}`,
-        body: [
-          `Repository: ${repo}`,
-          `Action: ${payload.action || 'received'}`,
-          `Sender: ${sender}`
-        ].join('\n'),
-        durationSeconds: 10,
-      };
-  }
-}
+const SessionManager = require('./src/SessionManager');
+const WebhookHandler = require('./src/WebhookHandler');
 
 // Load configuration from environment variables
 const PACKAGE_NAME = process.env.PACKAGE_NAME || "com.mentraos.github-webhook-relay";
@@ -81,8 +17,8 @@ if (!MENTRAOS_API_KEY) {
 }
 
 /**
- * GitHubMentraOSApp - Minimale Express App mit MentraOS SDK
- * Empfängt GitHub Webhooks und sendet sie als Reference Cards an die Brille
+ * GitHubMentraOSApp - Express App with MentraOS SDK
+ * Receives GitHub Webhooks and sends them as Reference Cards to smart glasses
  */
 class GitHubMentraOSApp extends TpaServer {
   constructor() {
@@ -95,10 +31,10 @@ class GitHubMentraOSApp extends TpaServer {
       tpaInstructions: 'GitHub Webhook Relay für MentraOS G1 Brillen'
     });
 
-    // Store für aktive Sessions
-    this.activeSessions = new Map();
+    // Dependency Injection: Initialize managers
+    this.sessionManager = new SessionManager(this.logger);
+    this.webhookHandler = new WebhookHandler(this.sessionManager, this.logger, GITHUB_WEBHOOK_SECRET);
     
-    // WORKAROUND: Suppress SDK errors for unknown message types
     this.setupSDKErrorWorkaround();
     
     console.log(`🔧 Initializing GitHub MentraOS App`);
@@ -142,208 +78,10 @@ class GitHubMentraOSApp extends TpaServer {
   }
 
   /**
-   * MentraOS Session Handler - wird aufgerufen wenn sich eine Brille verbindet
+   * MentraOS Session Handler - called when glasses connect
    */
   async onSession(session, sessionId, userId) {
-    this.logger.info(`🔵 New MentraOS session: ${sessionId} for user ${userId}`);
-
-    // Session speichern
-    this.activeSessions.set(sessionId, {
-      session,
-      sessionId,
-      userId,
-      connectedAt: new Date().toISOString(),
-      lastActivity: new Date().toISOString()
-    });
-
-    // Welcome Message
-    await this.sendWelcomeMessage(session, sessionId, userId);
-
-        // Event Handlers
-    session.events.onDisconnected(() => {
-      this.logger.info(`🔴 Session ${sessionId} disconnected`);
-      // Remove from our session store
-      this.activeSessions.delete(sessionId);
-    });
-
-    // Note: onUserInteraction may not be available in this SDK version
-    // Comment out for now to avoid errors
-    // session.events.onUserInteraction(() => {
-    //   const stored = this.activeSessions.get(sessionId);
-    //   if (stored) {
-    //     stored.lastActivity = new Date().toISOString();
-    //   }
-    // });
-  }
-
-  /**
-   * Welcome Message an neue Session
-   */
-  async sendWelcomeMessage(session, sessionId, userId) {
-    try {
-      await session.layouts.showReferenceCard("Verbunden mit PushProxy!",
-        `Session: ${sessionId} , User: ${userId}`,{
-          durationMs: 10000
-        });
-      this.logger.info(`✅ Welcome message sent to ${sessionId}`);
-    } catch (error) {
-      this.logger.error(`❌ Failed to send welcome message: ${error.message}`);
-    }
-  }
-
-  /**
-   * GitHub Webhook verarbeiten
-   */
-  async handleGitHubWebhook(sessionId, event, payload, signature) {
-    this.logger.info(`🎯 GitHub webhook received: ${event} for session ${sessionId}`);
-
-    // Session finden
-    const storedSession = this.activeSessions.get(sessionId);
-    if (!storedSession) {
-      throw new Error(`No active session found for ${sessionId}`);
-    }
-
-    // Signature verifizieren (nur wenn signature übergeben wurde)
-    if (signature && !this.verifyGitHubSignature(payload, signature)) {
-      throw new Error('Invalid GitHub webhook signature');
-    }
-
-    // Card erstellen
-    const card = createCardFromEvent(event, JSON.parse(payload));
-    this.logger.info(`🃏 Created card: ${card.title}`);
-
-    // Card an Brille senden
-    try {
-      await storedSession.session.layouts.showReferenceCard(
-        card.title,
-        card.body,
-        {
-          durationMs: Math.min(Math.max(card.durationSeconds || 15, 5), 60) * 1000
-        }
-      );
-
-      // Aktivität updaten
-      storedSession.lastActivity = new Date().toISOString();
-      
-      this.logger.info(`✅ Reference card sent to ${sessionId}: ${card.title}`);
-      return { success: true, card };
-    } catch (error) {
-      this.logger.error(`❌ Failed to send reference card: ${error.message}`);
-      throw error;
-    }
-  }
-
-  /**
-   * GitHub Webhook zu allen aktiven Sessions broadcasten
-   */
-  async handleGitHubWebhookBroadcast(event, payload, signature) {
-    this.logger.info(`🎯 GitHub webhook broadcast: ${event} to ${this.activeSessions.size} sessions`);
-
-    // Signature verifizieren (nur wenn signature übergeben wurde)
-    if (signature && !this.verifyGitHubSignature(payload, signature)) {
-      throw new Error('Invalid GitHub webhook signature');
-    }
-
-    // Keine aktiven Sessions
-    if (this.activeSessions.size === 0) {
-      throw new Error('No active sessions to notify');
-    }
-
-    // Card erstellen
-    const card = createCardFromEvent(event, JSON.parse(payload));
-    this.logger.info(`🃏 Broadcasting card: ${card.title}`);
-
-    // An alle Sessions senden
-    const results = [];
-    for (const [sessionId, storedSession] of this.activeSessions) {
-      try {
-        await storedSession.session.layouts.showReferenceCard(
-          card.title,
-          card.body,
-          {
-            durationMs: Math.min(Math.max(card.durationSeconds || 15, 5), 60) * 1000
-          }
-        );
-
-        // Aktivität updaten
-        storedSession.lastActivity = new Date().toISOString();
-        
-        results.push({ sessionId, success: true });
-        this.logger.info(`✅ Card sent to session ${sessionId}`);
-      } catch (error) {
-        results.push({ sessionId, success: false, error: error.message });
-        this.logger.error(`❌ Failed to send card to session ${sessionId}: ${error.message}`);
-      }
-    }
-
-    const successCount = results.filter(r => r.success).length;
-    this.logger.info(`📊 Broadcast complete: ${successCount}/${results.length} sessions notified`);
-
-    return {
-      sessionsNotified: successCount,
-      totalSessions: results.length,
-      results,
-      card
-    };
-  }
-
-  /**
-   * GitHub Signature verifizieren
-   */
-  verifyGitHubSignature(payload, signature) {
-    this.logger.info(`🔐 Verifying GitHub signature...`);
-    this.logger.info(`   Payload type: ${typeof payload}, isBuffer: ${Buffer.isBuffer(payload)}`);
-    this.logger.info(`   Payload constructor: ${payload?.constructor?.name || 'unknown'}`);
-    this.logger.info(`   Signature received: ${signature ? signature.substring(0, 20) + '...' : 'null'}`);
-    this.logger.info(`   Secret configured: ${GITHUB_WEBHOOK_SECRET ? '✅ Yes' : '❌ No'}`);
-
-    if (!GITHUB_WEBHOOK_SECRET) {
-      this.logger.warn('⚠️ No GitHub webhook secret configured, skipping signature verification');
-      return true; // Skip verification if no secret
-    }
-
-    if (!signature) {
-      this.logger.error('❌ No signature provided');
-      return false;
-    }
-
-    // Convert payload to Buffer, handling different input types
-    let payloadBuffer;
-    if (Buffer.isBuffer(payload)) {
-      payloadBuffer = payload;
-      this.logger.info(`   Payload is already a Buffer (${payload.length} bytes)`);
-    } else if (typeof payload === 'string') {
-      payloadBuffer = Buffer.from(payload, 'utf8');
-      this.logger.info(`   Converted string to Buffer (${payloadBuffer.length} bytes)`);
-    } else if (typeof payload === 'object') {
-      // Object (JSON already parsed) - convert back to string
-      const payloadString = JSON.stringify(payload);
-      payloadBuffer = Buffer.from(payloadString, 'utf8');
-      this.logger.info(`   Converted object to Buffer (${payloadBuffer.length} bytes)`);
-    } else {
-      this.logger.error(`❌ Unsupported payload type: ${typeof payload}`);
-      return false;
-    }
-    
-    const hmac = crypto.createHmac('sha256', GITHUB_WEBHOOK_SECRET);
-    hmac.update(payloadBuffer);
-    const expectedSignature = `sha256=${hmac.digest('hex')}`;
-
-    this.logger.info(`   Expected signature: ${expectedSignature.substring(0, 20)}...`);
-    this.logger.info(`   Received signature: ${signature.substring(0, 20)}...`);
-
-    try {
-      const isValid = crypto.timingSafeEqual(
-        Buffer.from(signature, 'utf8'),
-        Buffer.from(expectedSignature, 'utf8')
-      );
-      
-      this.logger.info(`   Signature valid: ${isValid ? '✅' : '❌'}`);
-      return isValid;
-    } catch (error) {
-      this.logger.error(`   Signature comparison error: ${error.message}`);
-      return false;
-    }
+    await this.sessionManager.registerSession(session, sessionId, userId);
   }
 
   /**
@@ -402,15 +140,14 @@ class GitHubMentraOSApp extends TpaServer {
       this.logger.info(`   Body type: ${typeof payload}, isBuffer: ${Buffer.isBuffer(payload)}`);
       this.logger.info(`   Payload string length: ${payloadString ? payloadString.length : 'null'}`);
 
-      // Signatur verifizieren wenn von GitHub empfangen
-      if (signature && !this.verifyGitHubSignature(payload, signature)) {
+      // Verify signature if provided
+      if (signature && !this.webhookHandler.verifySignature(payload, signature)) {
         this.logger.error('❌ Invalid GitHub webhook signature');
         return res.status(401).json({ error: 'Invalid signature' });
       }
 
       try {
-        // Webhook OHNE Signatur weiterleiten (wird bereits verifiziert)
-        const result = await this.handleGitHubWebhookBroadcast(event, payloadString, null);
+        const result = await this.webhookHandler.broadcastWebhook(event, payloadString, null);
         
         this.logger.info(`✅ Webhook broadcast successful: ${result.sessionsNotified}/${result.totalSessions} sessions`);
         
@@ -460,15 +197,14 @@ class GitHubMentraOSApp extends TpaServer {
 
       this.logger.info(`   Body type: ${typeof payload}, isBuffer: ${Buffer.isBuffer(payload)}`);
 
-      // Signatur verifizieren wenn von GitHub empfangen
-      if (signature && !this.verifyGitHubSignature(payload, signature)) {
+      // Verify signature if provided
+      if (signature && !this.webhookHandler.verifySignature(payload, signature)) {
         this.logger.error('❌ Invalid GitHub webhook signature');
         return res.status(401).json({ error: 'Invalid signature' });
       }
 
       try {
-        // Webhook OHNE Signatur weiterleiten (wird bereits verifiziert)
-        const result = await this.handleGitHubWebhook(sessionId, event, payloadString, null);
+        const result = await this.webhookHandler.processWebhookForSession(sessionId, event, payloadString, null);
         
         this.logger.info(`✅ Webhook processed successfully for session ${sessionId}`);
         
@@ -492,12 +228,7 @@ class GitHubMentraOSApp extends TpaServer {
 
     // Status Endpoint
     app.get('/status', (req, res) => {
-      const sessions = Array.from(this.activeSessions.values()).map(s => ({
-        sessionId: s.sessionId,
-        userId: s.userId,
-        connectedAt: s.connectedAt,
-        lastActivity: s.lastActivity
-      }));
+      const sessions = this.sessionManager.getAllSessions();
 
       res.json({
         status: 'running',
@@ -632,23 +363,14 @@ class GitHubMentraOSApp extends TpaServer {
     // Test Message Endpoint
     app.post('/test/:sessionId', async (req, res) => {
       const { sessionId } = req.params;
-      const storedSession = this.activeSessions.get(sessionId);
-
-      if (!storedSession) {
-        return res.status(404).json({ error: 'Session not found' });
-      }
 
       try {
-        await storedSession.session.layouts.showReferenceCard(
-          '🧪 Test Message',
-          `Test erfolgreich!\n\nSession: ${sessionId}\nZeit: ${new Date().toLocaleString('de-DE')}`,
-          {
-            durationMs: 10000
-          }
-        );
-
+        await this.sessionManager.sendTestMessage(sessionId);
         res.json({ success: true, message: 'Test message sent' });
       } catch (error) {
+        if (error.message.includes('No active session')) {
+          return res.status(404).json({ error: 'Session not found' });
+        }
         res.status(500).json({ error: error.message });
       }
     });
